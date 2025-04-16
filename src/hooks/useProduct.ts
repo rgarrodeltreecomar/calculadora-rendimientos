@@ -82,26 +82,40 @@ export const useProducts = () => {
   };
 
   const updateProducto = async (id: number, productoData: Producto) => {
+    console.log('[updateProducto] Iniciando actualización de producto');
+    console.log('[updateProducto] ID del producto:', id);
+    console.log('[updateProducto] Datos recibidos para actualizar:', productoData);
+  
     setIsLoading(true);
     try {
       const formData = new FormData();
-      
+  
       Object.entries(productoData).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           formData.append(key, value);
+          console.log(`[updateProducto] Añadiendo al formData: ${key} =`, value);
+        } else {
+          console.warn(`[updateProducto] Campo omitido: ${key} (valor: ${value})`);
         }
       });
   
+      console.log('[updateProducto] Enviando PUT a:', endpoints.productById(id));
+      
       const response = await productAPI.put(endpoints.productById(id), formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
   
+      console.log('[updateProducto] Respuesta del servidor:', response);
+  
       if (response.status === 201 || response.status === 204) {
         Swal.fire("Éxito", "Producto actualizado correctamente.", "success");
-        setProductos(prev => prev.map(p => p.id === id ? {...productoData, id} : p));
+        console.log('[updateProducto] Producto actualizado con éxito en el estado');
+        setProductos(prev => prev.map(p => p.id === id ? { ...productoData, id } : p));
         return response.data;
+      } else {
+        console.warn('[updateProducto] Código de estado inesperado:', response.status);
       }
     } catch (error) {
       console.error("Error en updateProducto:", error);
@@ -113,9 +127,11 @@ export const useProducts = () => {
       });
       throw error;
     } finally {
+      console.log('[updateProducto] Finalizando operación');
       setIsLoading(false);
     }
   };
+  
 
   const deleteProducto = async (id: number) => {
     setIsLoading(true);
