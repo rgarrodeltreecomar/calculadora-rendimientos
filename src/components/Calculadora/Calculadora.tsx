@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import { 
   Box,
   Typography,
@@ -5,20 +6,21 @@ import {
   useTheme,
   IconButton
 } from '@mui/material';
-import { Calculate as CalculatorIcon, EmojiEvents as TrophyIcon , Edit as EditIcon } from '@mui/icons-material';
+import { Calculate as CalculatorIcon, Edit as EditIcon } from '@mui/icons-material';
 import { useComparativa } from '../../hooks';
 import { SelectProductos } from '../SelectProductos/SelectProductos';
 import { ProductoFijo } from '../StaticItem/StaticItem';
-import { CalculatorContainer, CalculatorHeader, EstrellaBadge, GridCell, GridHeaderCell, MedicalCalculator, MejorRendimientoBanner, ProductoEstrellaContainer, ResultadosGrid } from '../../styles/Calculadora';
-import React, { useEffect } from 'react';
-import { Producto } from '../../interfaces/interfaces';
-
-interface CalculadoraProps {
-  productosDisponibles: Producto[];
-  productoEstrella: Producto | undefined;
-  onEditProduct: (producto: Producto) => void;
-  isLoading: boolean;
-}
+import { 
+  CalculatorContainer, 
+  CalculatorHeader, 
+  MedicalCalculator, 
+  //MejorRendimientoBanner, 
+  ProductoEstrellaContainer,
+} from '../../styles';
+import { CalculadoraProps } from '../../interfaces/Calculadora.types';
+import { DataTable, TableCellStyled, StyledRow } from '../TablaComparacion/TablaComparacion';
+import { StarProductCell } from '../StarProductCell';
+import { RecomendacionCompra } from '../RecomendationCard/RecomendationCard';
 
 export const Calculadora: React.FC<CalculadoraProps> = ({
   productosDisponibles,
@@ -30,21 +32,24 @@ export const Calculadora: React.FC<CalculadoraProps> = ({
   const {
     comparativa,
     seleccionarProducto,
-  } = useComparativa(productosDisponibles,  isLoading,  productoEstrella);
+  } = useComparativa(productosDisponibles, isLoading, productoEstrella);
 
-  const getProductoConMejorRendimiento = () => {
-    if (comparativa.resultados.length < 2) return null;
-    
-    const [estrella, comparado] = comparativa.resultados;
-    
-    if (!estrella.producto.rendimientoPorLitro || !comparado.producto.rendimientoPorLitro) {
-      return null;
-    }
-    
-    return comparado.diferenciaRendimiento > 0 ? comparado : estrella;
+
+  const formatARS = (value: number) => {
+    return value.toFixed(2)
+      .replace('.', ',')
+      .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
-  const productoMejorRendimiento = getProductoConMejorRendimiento();
+
+  const columns = [
+    { text: 'Producto', align: 'left' as const, width: '25%' },
+    { text: 'Litros', align: 'center' as const, width: '15%' },
+    { text: 'Precio por litro', align: 'center' as const, width: '20%' },
+    { text: 'Diferencia de precio', align: 'center' as const, width: '20%' },
+    { text: 'Diferencia de rendimiento', align: 'center' as const, width: '20%' },
+    { text: 'Modificar', align: 'center' as const, width: '15%' },
+  ];
 
   useEffect(() => {
     console.log('Productos disponibles en Calculadora:', productosDisponibles);
@@ -71,130 +76,144 @@ export const Calculadora: React.FC<CalculadoraProps> = ({
         </Box>
       ) : (
         <MedicalCalculator elevation={0}>
-          {productoEstrella && (
-            <ProductoEstrellaContainer>
-              <Typography variant="h6" gutterBottom>
-                Nuestro Producto
-              </Typography>
-              <ProductoFijo
-                producto={{
-                  id: productoEstrella.id || 1,
-                  foto: productoEstrella.foto as string,
-                  nombre: productoEstrella.nombre,
-                }}
-                size="medium"
-                sx={{
-                  backgroundColor: theme.palette.common.white,
-                  border: '1px solid #aaff00',
-                  borderRadius: 8,
-                  padding: 2,
-                }}
-                showBadge
-              />
-            </ProductoEstrellaContainer>
-          )}
+          <Box 
+            display="flex" 
+            flexDirection={{ xs: 'column', md: 'row' }} 
+            justifyContent="space-between" 
+            alignItems={{ xs: 'center', md: 'flex-start' }}
+            gap={4}
+            mb={4}
+          >
+            {productoEstrella && (
+              <ProductoEstrellaContainer sx={{ 
+                flex: 1,
+                width: '100%',
+                maxWidth: { xs: '100%', md: '50%' }
+              }}>
+                <Typography variant="h6" gutterBottom>
+                  Nuestro Producto
+                </Typography>
+                <ProductoFijo
+                  producto={{
+                    id: productoEstrella.id || 1,
+                    foto: productoEstrella.foto as string,
+                    nombre: productoEstrella.nombre!,
+                  }}
+                  size="medium"
+                  sx={{
+                    backgroundColor: theme.palette.common.white,
+                    border: '1px solid #010101',
+                    borderRadius: 8,
+                    padding: 2,
+                    width: '100%'
+                  }}
+                  showBadge
+                />
+              </ProductoEstrellaContainer>
+            )}
 
-<SelectProductos
-      productos={productosDisponibles}  // Usamos los productos que vienen como prop
-      productoSeleccionado={comparativa.productoSeleccionado}
-      onSeleccionar={seleccionarProducto}
-    />
-
-          {productoMejorRendimiento && (
-            <MejorRendimientoBanner sx={{
-              backgroundColor: theme.palette.success.light,
-              borderLeft: `4px solid ${theme.palette.success.main}`,
-              color: theme.palette.success.dark,
+            <Box sx={{ 
+              flex: 1,
+              width: '100%',
+              maxWidth: { xs: '100%', md: '50%' }
             }}>
-              <TrophyIcon fontSize="medium" />
-              <Typography variant="body1">
-                Mejor rendimiento: <strong>{productoMejorRendimiento.producto.nombre}</strong> 
-                ({productoMejorRendimiento.producto.rendimientoPorLitro} m²/L)
+              <Typography variant="h6" gutterBottom>
+                Comparar con
               </Typography>
-            </MejorRendimientoBanner>
-          )}
+              <SelectProductos
+                productos={productosDisponibles}
+                productoSeleccionado={comparativa.productoSeleccionado}
+                onSeleccionar={seleccionarProducto}
+              />
+            </Box>
+          </Box>
 
           {comparativa.resultados.length > 0 && (
             <Box mt={4}>
               <Typography variant="h6" color="primary" textAlign="center" gutterBottom>
                 Resultados de comparación
               </Typography>
-              <ResultadosGrid>
-                <GridHeaderCell>Producto</GridHeaderCell>
-                <GridHeaderCell>Litros</GridHeaderCell>
-                <GridHeaderCell>Precio por litro</GridHeaderCell>
-                <GridHeaderCell>Diferencia de precio</GridHeaderCell>
-                <GridHeaderCell>Diferencia de rendimiento</GridHeaderCell>
-                <GridHeaderCell>Modificar</GridHeaderCell>
-                {comparativa.resultados.map((item, index) => {
-                  const esMejorRendimiento = productoMejorRendimiento?.producto.id === item.producto.id;
-                  const esProductoPropio = item.producto.id === 1;
-                  
-                  return (
-                    <React.Fragment key={item.producto.id}>
-                      <GridCell sx={{
-                        justifyContent: 'flex-start',
-                        paddingLeft: 3,
-                        backgroundColor: index === 0 ? theme.palette.primary.light : 'inherit',
-                        fontWeight: index === 0 ? 500 : 'inherit',
-                        position: 'relative',
-                         border: esMejorRendimiento ? `2px solid ${theme.palette.success.main}` : 'none',
-                        '&:before': index === 0 ? {
-                          content: '""',
-                          position: 'absolute',
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: 4,
-                          backgroundColor: theme.palette.primary.main,
-                          borderRadius: '2px 0 0 2px',
-                        } : {}
-                      }}>
-                        {item.producto.nombre}
-                        {index === 0 && <EstrellaBadge label="ESTRELLA" size="small" />}
-                      </GridCell>
-                      <GridCell>L {item.producto.presentacionEnLitros}</GridCell>
-                      <GridCell>${item.costoPorLitro.toFixed(2)}</GridCell>
-                      
-                      <GridCell sx={{
-                        color: item.diferenciaPrecio >= 0 ? theme.palette.error.main : theme.palette.success.main,
-                        backgroundColor: item.diferenciaPrecio >= 0 ? theme.palette.error.light : theme.palette.success.light,
-                      }}>
-                        {item.diferenciaPrecio >= 0 ? '+' : ''}{item.diferenciaPrecio}%
-                      </GridCell>
-                      <GridCell sx={{
-                        color: item.diferenciaRendimiento >= 0 ? theme.palette.success.main : theme.palette.error.main,
-                        backgroundColor: item.diferenciaRendimiento >= 0 ? theme.palette.success.light : theme.palette.error.light,
-                      }}>
-                        {item.diferenciaRendimiento >= 0 ? '+' : ''}{item.diferenciaRendimiento}%
-                      </GridCell>
-                      <GridCell>
-                      {!esProductoPropio && (
-                          <IconButton 
-                            aria-label="editar" 
-                            size="small"
-                            onClick={() => onEditProduct(item.producto)}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                      </GridCell>
-                    </React.Fragment>
-                  );
-                })}
-              </ResultadosGrid>
+              
+              <DataTable columns={columns} isLoading={isLoading} maxHeight={500}>
+  {comparativa.resultados.map((item, index) => {
+    const esProductoPropio = item.producto.id === 1;
+    const isFirstItem = index === 0;
 
-              <Box mt={3} p={2} bgcolor={theme.palette.grey[50]} borderRadius={2} border={`1px solid ${theme.palette.grey[300]}`}>
-                <Typography variant="body2" color="text.secondary">
-                  <strong>Precio por litro:</strong> Costo por litro de producto concentrado
-                </Typography>
-                <Typography variant="body2" color="text.secondary" mt={1}>
-                  <strong>Diferencia de precio:</strong> Comparación porcentual con el producto estrella
-                </Typography>
-                <Typography variant="body2" color="text.secondary" mt={1}>
-                  <strong>Diferencia de rendimiento:</strong> Comparación porcentual del rendimiento con el producto estrella
-                </Typography>
-              </Box>
+    return (
+      <StyledRow
+        key={item.producto.id}
+        className={`${isFirstItem ? 'active-row' : ''}`} // Eliminado 'best-performance'
+      >
+        <TableCellStyled
+          align="left"
+          sx={{
+            position: 'relative',
+            '&:before': isFirstItem
+              ? {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 4,
+                  backgroundColor: theme.palette.primary.main,
+                  borderRadius: '2px 0 0 2px',
+                }
+              : {},
+          }}
+        >
+          <StarProductCell 
+            name={item.producto.nombre!} 
+            isStar={isFirstItem} 
+          />
+        </TableCellStyled>
+
+        <TableCellStyled align="center">
+           {item.producto.presentacionEnLitros} L
+        </TableCellStyled>
+
+        <TableCellStyled align="center">
+          ${formatARS(item.costoPorLitro)}
+        </TableCellStyled>
+
+        <TableCellStyled
+          align="center"
+          className={item.diferenciaPrecio >= 0 ? 'highlight-negative' : 'highlight-positive'}
+        >
+          {item.diferenciaPrecio >= 0 ? '+' : ''}
+          {item.diferenciaPrecio}%
+        </TableCellStyled>
+
+        <TableCellStyled
+          align="center"
+          className={item.diferenciaRendimiento >= 0 ? 'highlight-positive' : 'highlight-negative'}
+        >
+          {item.diferenciaRendimiento >= 0 ? '+' : ''}
+          {item.diferenciaRendimiento}%
+        </TableCellStyled>
+
+        <TableCellStyled align="center">
+          {!esProductoPropio && (
+            <IconButton
+              aria-label="editar"
+              size="small"
+              onClick={() => onEditProduct(item.producto)}
+              sx={{ color: theme.palette.primary.main }}
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
+          )}
+        </TableCellStyled>
+      </StyledRow>
+    );
+  })}
+</DataTable>
+
+        <RecomendacionCompra
+          productoEstrella={productoEstrella}
+          productoComparado={comparativa.productoSeleccionado}
+          resultados={comparativa.resultados}
+        />
             </Box>
           )}
         </MedicalCalculator>

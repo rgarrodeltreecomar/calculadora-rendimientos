@@ -1,9 +1,11 @@
+
 import { useCallback, useState } from 'react';
 import { productAPI, endpoints } from '../services/productAPI';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { Producto } from '../interfaces/interfaces';
-// import { productosMercado } from '../utils/objetos';
+import { processProductsImages } from '../helpers/productImageHelper';
+
 
 export const useProducts = () => {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -14,13 +16,12 @@ export const useProducts = () => {
     setIsLoading(true);
     try {
       const response = await productAPI.get(endpoints.products);
+      
       if (response.data && response.data.length) {
-        const productosConHttps = response.data.map((producto: { foto: string; }) => ({
-          ...producto,
-          foto: producto.foto?.replace('http://', 'https://')
-        }));
-        setProductos(productosConHttps);
-        console.log("Info de get: ", response.data )
+        const productosProcesados = processProductsImages(response.data);
+        
+        setProductos(productosProcesados);
+        console.log("Productos obtenidos: ", productosProcesados);
       } else {
         Swal.fire({
           icon: 'info',
@@ -29,7 +30,7 @@ export const useProducts = () => {
           timer: 3000
         });
       }
-    }  catch (error) {
+    } catch (error) {
       console.error('Error en getProductos:', error);
       Swal.fire({
         icon: 'warning',
@@ -80,58 +81,71 @@ export const useProducts = () => {
       setIsLoading(false);
     }
   };
-
-  const updateProducto = async (id: number, productoData: Producto) => {
-    console.log('[updateProducto] Iniciando actualización de producto');
-    console.log('[updateProducto] ID del producto:', id);
-    console.log('[updateProducto] Datos recibidos para actualizar:', productoData);
-  
+  const updateProducto = async (id: number, productoData: Partial<Producto>) => {
     setIsLoading(true);
     try {
       const formData = new FormData();
-  
-      Object.entries(productoData).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          formData.append(key, value);
-          console.log(`[updateProducto] Añadiendo al formData: ${key} =`, value);
-        } else {
-          console.warn(`[updateProducto] Campo omitido: ${key} (valor: ${value})`);
-        }
-      });
-  
-      console.log('[updateProducto] Enviando PUT a:', endpoints.productById(id));
       
-      const response = await productAPI.put(endpoints.productById(id), formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // 1. Campos obligatorios según la configuración
+      formData.append('Id', id.toString());
+      formData.append('Nombre', productoData.nombre || '');
+      formData.append('Descripcion', productoData.descripcion || '');
+      formData.append('PresentacionEnLitros', (productoData.presentacionEnLitros ?? 0).toString());
+      formData.append('DilucionDeUsoMaxima', (productoData.dilucionDeUsoMaxima ?? 0).toString());
+      formData.append('Precio', (productoData.precio ?? 0).toString());
+      
+
   
-      console.log('[updateProducto] Respuesta del servidor:', response);
+      // 3. Envío con configuración específica
+      const response = await productAPI.put(
+        endpoints.productById(id),
+        formData
+      );
   
-      if (response.status === 201 || response.status === 204) {
-        Swal.fire("Éxito", "Producto actualizado correctamente.", "success");
-        console.log('[updateProducto] Producto actualizado con éxito en el estado');
-        setProductos(prev => prev.map(p => p.id === id ? { ...productoData, id } : p));
+      if (response.status >= 200 && response.status < 300) {
+        Swal.fire('Éxito', 'Producto actualizado', 'success');
+        setProductos(prev => 
+          prev.map(p => p.id === id ? { ...p, ...response.data } : p)
+        );
         return response.data;
-      } else {
-        console.warn('[updateProducto] Código de estado inesperado:', response.status);
       }
+      throw new Error(`Error HTTP: ${response.status}`);
     } catch (error) {
-      console.error("Error en updateProducto:", error);
+      let errorMessage = 'Error al actualizar el producto';
+      
+      // Manejo mejorado de errores
+      if (typeof error === 'object' && error !== null) {
+        const apiError = error as {
+          response?: {
+            data?: { 
+              message?: string;
+              errors?: Record<string, string[]>;
+            };
+            status?: number;
+          };
+          message?: string;
+        };
+        
+        errorMessage = apiError.response?.data?.message || 
+                      (apiError.response?.data?.errors && Object.values(apiError.response.data.errors).join('\n')) || 
+                      apiError.message || 
+                      errorMessage;
+      }
+  
+      console.error('Detalle del error:', error);
       Swal.fire({
         icon: 'error',
-        title: 'Error de conexión',
-        text: 'No se pudo conectar al servidor. Verifica tu conexión de red.',
-        timer: 3000
+        title: 'Error',
+        text: errorMessage,
+        timer: 5000,
       });
+      
       throw error;
     } finally {
-      console.log('[updateProducto] Finalizando operación');
       setIsLoading(false);
     }
   };
-  
+
 
   const deleteProducto = async (id: number) => {
     setIsLoading(true);

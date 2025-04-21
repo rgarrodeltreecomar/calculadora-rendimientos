@@ -3,14 +3,14 @@ import Swal from 'sweetalert2';
 import { Producto } from '../interfaces/interfaces';
 
 
-type ResultadoComparativa = {
+export type ResultadoComparativa = {
   producto: Producto;
   costoPorLitro: number;
   diferenciaPrecio: number;
   diferenciaRendimiento: number;
 };
 
-type Comparativa = {
+export type Comparativa = {
   productoSeleccionado: Producto | undefined;
   resultados: ResultadoComparativa[];
 };
@@ -44,26 +44,26 @@ export const useComparativa = (productos: Producto[], isLoading: boolean,  produ
       Swal.fire('Error', 'Debes seleccionar un producto para comparar', 'error');
       return;
     }
-
+  
     if (!productoEstrella.precio || !productoEstrella.presentacionEnLitros) {
       Swal.fire('Error', 'Faltan datos del producto estrella', 'error');
       return;
     }
-
+  
     if (!productoParaComparar.precio || !productoParaComparar.presentacionEnLitros) {
       Swal.fire('Error', 'Faltan datos del producto a comparar', 'error');
       return;
     }
-
-    const costoEstrellaPorLitro = productoEstrella.precio / productoEstrella.presentacionEnLitros;
-    const costoCompararPorLitro = productoParaComparar.precio / productoParaComparar.presentacionEnLitros;
-
-    const diferenciaPrecio = ((costoCompararPorLitro - costoEstrellaPorLitro) / costoEstrellaPorLitro) * 100;
+  
+    const costoEstrellaPorLitro = Number((productoEstrella.precio / productoEstrella.presentacionEnLitros).toFixed(2));
+    const costoCompararPorLitro = Number((productoParaComparar.precio / productoParaComparar.presentacionEnLitros).toFixed(2));
+  
+    const diferenciaPrecio = Number((((costoCompararPorLitro - costoEstrellaPorLitro) / costoEstrellaPorLitro) * 100).toFixed(2));
     
     const diferenciaRendimiento = productoParaComparar.rendimientoPorLitro && productoEstrella.rendimientoPorLitro
-      ? ((productoParaComparar.rendimientoPorLitro - productoEstrella.rendimientoPorLitro) / productoEstrella.rendimientoPorLitro) * 100
+      ? Number((((productoParaComparar.rendimientoPorLitro - productoEstrella.rendimientoPorLitro) / productoEstrella.rendimientoPorLitro) * 100).toFixed(2))
       : 0;
-
+  
     const resultados = [
       {
         producto: productoEstrella,
@@ -78,7 +78,7 @@ export const useComparativa = (productos: Producto[], isLoading: boolean,  produ
         diferenciaRendimiento
       }
     ];
-
+  
     setComparativa({
       productoSeleccionado: productoParaComparar,
       resultados

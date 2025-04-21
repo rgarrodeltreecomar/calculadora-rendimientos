@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calculadora } from './Calculadora.tsx';
+import { Calculadora } from './Calculadora';
 import { EditProductModal } from '../Modal/Modal';
 import { useProducts } from '../../hooks';
 import { Producto } from '../../interfaces/interfaces';
@@ -23,17 +23,20 @@ export const CalculatorPage = () => {
     setProductoAEditar(producto);
   };
 
-  const handleSaveProduct = async (updatedProduct: Producto) => {
+  const handleSaveProduct = async (updatedProduct: Partial<Producto>) => {
     if (!productoAEditar?.id) return;
     
     try {
-      // Llama a updateProducto con el ID y los nuevos datos
-      await updateProducto(productoAEditar.id, updatedProduct);
-      
-      // Actualiza la lista de productos después de editar
-      await getProductos();
-      
-      setProductoAEditar(null);
+      if (updatedProduct.precio !== undefined && updatedProduct.presentacionEnLitros !== undefined) {
+        await updateProducto(productoAEditar.id, {
+          precio: updatedProduct.precio,
+          presentacionEnLitros: updatedProduct.presentacionEnLitros
+        });
+        await getProductos();
+        setProductoAEditar(null);
+      } else {
+        throw new Error('Faltan campos para actualizar el producto');
+      }
     } catch (error) {
       console.error("Error al actualizar producto:", error);
       Swal.fire("Error", "No se pudo actualizar el producto", "error");
