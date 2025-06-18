@@ -1,48 +1,108 @@
-
 import { useCallback, useState } from 'react';
 import { productAPI, endpoints } from '../services/productAPI';
 import Swal from 'sweetalert2';
-import { useNavigate } from 'react-router-dom';
 import { Producto } from '../interfaces/interfaces';
 import { processProductsImages } from '../helpers/productImageHelper';
 
+// Datos locales para cuando la API no esté disponible
+const productosLocales: Producto[] = [
+  {
+    id: 1,
+    nombre: 'TRIDEX',
+    descripcion: 'Detergente Enzimático',
+    foto: '/tridex.jpg',
+    presentacionEnLitros: 5,
+    precio: 0,
+    rendimientoPorLitro: 0
+  },
+  {
+    id: 2,
+    nombre: 'NOVAZIME',
+    descripcion: 'Detergente Enzimático',
+    foto: '/NOVAZIME.jpg',
+    presentacionEnLitros: 5,
+    precio: 0,
+    rendimientoPorLitro: 0
+  }
+];
 
 export const useProducts = () => {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
   const getProductos = useCallback(async () => {
+    console.log('🚀 Iniciando getProductos...');
+    console.log('📡 URL de la API:', endpoints.products);
     setIsLoading(true);
+    
     try {
+      console.log('📤 Enviando petición GET a la API...');
       const response = await productAPI.get(endpoints.products);
+      console.log('📥 Respuesta recibida:', {
+        status: response.status,
+        statusText: response.statusText,
+        dataLength: response.data?.length
+      });
       
       if (response.data && response.data.length) {
+        console.log('✅ Datos recibidos correctamente');
+        console.log('📦 Datos crudos:', response.data);
+        
         const productosProcesados = processProductsImages(response.data);
+        console.log('🖼️ Productos procesados:', productosProcesados);
         
         setProductos(productosProcesados);
-        console.log("Productos obtenidos: ", productosProcesados);
+        console.log('💾 Estado actualizado con productos procesados');
+        
+        // Log detallado de cada producto
+        productosProcesados.forEach((producto, index) => {
+          console.log(`📋 Producto ${index + 1}:`, {
+            id: producto.id,
+            nombre: producto.nombre,
+            precio: producto.precio,
+            foto: producto.foto,
+            presentacionEnLitros: producto.presentacionEnLitros,
+            dilucionDeUsoMaxima: producto.dilucionDeUsoMaxima
+          });
+        });
       } else {
+        console.warn('⚠️ No se recibieron datos o el array está vacío');
         Swal.fire({
           icon: 'info',
           title: 'Usando datos locales',
           text: 'No se pudieron obtener los productos del servidor',
           timer: 3000
         });
+        // Usar datos locales cuando no hay respuesta de la API
+        const productosProcesados = processProductsImages(productosLocales);
+        setProductos(productosProcesados);
       }
     } catch (error) {
-      console.error('Error en getProductos:', error);
+      console.error('❌ Error en getProductos:', error);
+      
+      // Log detallado del error
+      if (error instanceof Error) {
+        console.error('Detalles del error:', {
+          name: error.name,
+          message: error.message
+        });
+      }
+      
       Swal.fire({
         icon: 'warning',
         title: 'Error de conexión',
         text: 'No se pudo conectar al servidor',
         timer: 3000
       });
+      // Usar datos locales cuando hay error de conexión
+      const productosProcesados = processProductsImages(productosLocales);
+      setProductos(productosProcesados);
     } finally {
       setIsLoading(false);
+      console.log('🏁 Finalizado getProductos');
     }
   }, []);
-  
+
   const getProductoById = async (id: number) => {
     setIsLoading(true);
     try {
@@ -55,97 +115,6 @@ export const useProducts = () => {
       setIsLoading(false);
     }
   };
-
-  const createProducto = async (productoData: Producto) => {
-    setIsLoading(true);
-    try {
-      const formData = new FormData();
-      
-      Object.entries(productoData).forEach(([key, value]) => {
-        if (value !== undefined) {
-          formData.append(key, value);
-        }
-      });
-
-      const response = await productAPI.post(endpoints.products, formData);
-
-      if (response.status === 200 || response.status === 201) {
-        Swal.fire("Éxito", "Producto creado correctamente.", "success");
-        navigate('/productos');
-        return response.data;
-      }
-    } catch (error) {
-      console.error("Error en createProducto:", error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  const updateProducto = async (id: number, productoData: Partial<Producto>) => {
-    setIsLoading(true);
-    try {
-      const formData = new FormData();
-      
-      // 1. Campos obligatorios según la configuración
-      formData.append('Id', id.toString());
-      formData.append('Nombre', productoData.nombre || '');
-      formData.append('Descripcion', productoData.descripcion || '');
-      formData.append('PresentacionEnLitros', (productoData.presentacionEnLitros ?? 0).toString());
-      formData.append('DilucionDeUsoMaxima', (productoData.dilucionDeUsoMaxima ?? 0).toString());
-      formData.append('Precio', (productoData.precio ?? 0).toString());
-      
-
-  
-      // 3. Envío con configuración específica
-      const response = await productAPI.put(
-        endpoints.productById(id),
-        formData
-      );
-  
-      if (response.status >= 200 && response.status < 300) {
-        Swal.fire('Éxito', 'Producto actualizado', 'success');
-        setProductos(prev => 
-          prev.map(p => p.id === id ? { ...p, ...response.data } : p)
-        );
-        return response.data;
-      }
-      throw new Error(`Error HTTP: ${response.status}`);
-    } catch (error) {
-      let errorMessage = 'Error al actualizar el producto';
-      
-      // Manejo mejorado de errores
-      if (typeof error === 'object' && error !== null) {
-        const apiError = error as {
-          response?: {
-            data?: { 
-              message?: string;
-              errors?: Record<string, string[]>;
-            };
-            status?: number;
-          };
-          message?: string;
-        };
-        
-        errorMessage = apiError.response?.data?.message || 
-                      (apiError.response?.data?.errors && Object.values(apiError.response.data.errors).join('\n')) || 
-                      apiError.message || 
-                      errorMessage;
-      }
-  
-      console.error('Detalle del error:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: errorMessage,
-        timer: 5000,
-      });
-      
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   const deleteProducto = async (id: number) => {
     setIsLoading(true);
@@ -164,16 +133,33 @@ export const useProducts = () => {
     }
   };
 
-
+  const updateProducto = async (id: number, updatedData: Partial<Producto>) => {
+    setIsLoading(true);
+    try {
+      const response = await productAPI.patch(endpoints.productById(id), updatedData);
+      
+      if (response.status === 200) {
+        // Actualizar el estado local con el producto actualizado
+        setProductos(prev => prev.map(p => 
+          p.id === id ? { ...p, ...updatedData } : p
+        ));
+        return response.data;
+      }
+      throw new Error('Error al actualizar el producto');
+    } catch (error) {
+      console.error('Error en updateProducto:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return {
     productos,
     isLoading,
     getProductos,
     getProductoById,
-    createProducto,
-    updateProducto,
     deleteProducto,
-
+    updateProducto
   };
 };

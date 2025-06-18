@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
-import { ResultadoComparativa } from '../../hooks';
+import { ResultadoComparativa } from '../../hooks/useComparativa';
 import { Producto } from '../../interfaces/interfaces';
 import { CheckCircle, Warning, Info } from '@mui/icons-material';
 
@@ -22,16 +22,51 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
   // Extraer datos de la comparación
   const diferenciaPrecio = resultados[1].diferenciaPrecio;
   const diferenciaRendimiento = resultados[1].diferenciaRendimiento;
-  const esMejorOpcion = diferenciaPrecio < 0 && diferenciaRendimiento > 0;
-  const esMejorEstrella = diferenciaPrecio > 0 && diferenciaRendimiento < 0;
+  
+  // Función para formatear números con máximo 2 decimales
+  const formatearNumero = (valor: number): string => {
+    return valor.toFixed(2).replace(/\.?0+$/, ''); // Elimina ceros innecesarios al final
+  };
+
+  // Función para formatear porcentajes
+  const formatearPorcentaje = (valor: number): string => {
+    return formatearNumero(valor);
+  };
+
+  // Función para formatear litros
+  const formatearLitros = (valor: number): string => {
+    const redondeado = Math.round(valor * 100) / 100;
+    return redondeado
+      .toLocaleString('es-AR', {
+        minimumFractionDigits: redondeado % 1 === 0 ? 0 : 2,
+        maximumFractionDigits: 2,
+      })
+      .replace(/,/g, '.');
+  };
+
+  // Mejorar la lógica de determinación de mejor opción
+  // diferenciaRendimiento > 0 significa que el producto estrella rinde más
+  const esMejorOpcion = diferenciaPrecio < 0 && diferenciaRendimiento < 0; // Comparado es más barato y rinde más
+  const esMejorEstrella = diferenciaPrecio > 0 && diferenciaRendimiento > 0; // Estrella es más barato y rinde más
   const esEmpateTecnico = Math.abs(diferenciaPrecio) < 5 && Math.abs(diferenciaRendimiento) < 5;
+  
+  // Casos mixtos más específicos
+  const esMasBaratoPeroMenosRendimiento = diferenciaPrecio < 0 && diferenciaRendimiento > 0; // Comparado es más barato pero estrella rinde más
+  const esMasCaroPeroMasRendimiento = diferenciaPrecio > 0 && diferenciaRendimiento < 0; // Estrella es más caro pero comparado rinde más
 
-  // Calcular litros de diferencia
-  const litrosEstrella = productoEstrella.rendimientoPorLitro || 0;
-  const litrosComparado = productoComparado.rendimientoPorLitro || 0;
-  const diferenciaLitros = Math.abs(litrosComparado - litrosEstrella);
+  // Calcular litros de diferencia usando los valores calculados del hook
+  const litrosEstrella = resultados[0]?.producto.rendimientoPorLitro || 0;
+  const litrosComparado = resultados[1]?.producto.rendimientoPorLitro || 0;
+  const diferenciaLitros = Math.abs(litrosEstrella - litrosComparado);
 
-  // Determinar recomendación
+  console.log('📊 RecomendacionCompra - Valores de rendimiento:', {
+    litrosEstrella,
+    litrosComparado,
+    diferenciaLitros,
+    diferenciaRendimiento
+  });
+
+  // Determinar recomendación mejorada
   const getRecomendacion = () => {
     if (esEmpateTecnico) {
       return {
@@ -43,7 +78,7 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
     
     if (esMejorOpcion) {
       return {
-        texto: `Recomendamos comprar ${productoComparado.nombre} - ofrece mejor relación precio-rendimiento`,
+        texto: `Recomendamos comprar ${productoComparado.nombre} - es más económico y rinde más`,
         icono: <CheckCircle color="success" sx={{ mr: 1 }} />,
         color: theme.palette.success.main
       };
@@ -51,19 +86,49 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
     
     if (esMejorEstrella) {
       return {
-        texto: `Recomendamos comprar ${productoEstrella.nombre} - es la mejor opción`,
+        texto: `Recomendamos comprar ${productoEstrella.nombre} - es más económico y rinde más`,
         icono: <CheckCircle color="success" sx={{ mr: 1 }} />,
         color: theme.palette.success.main
       };
     }
     
-    // Casos mixtos
-    if (diferenciaPrecio < 0 && diferenciaRendimiento < 0) {
-      return {
-        texto: `${productoComparado.nombre} es más económico pero rinde menos`,
-        icono: <Warning color="warning" sx={{ mr: 1 }} />,
-        color: theme.palette.warning.main
-      };
+    // Casos mixtos con recomendaciones más específicas
+    if (esMasBaratoPeroMenosRendimiento) {
+      const porcentajeAhorro = Math.abs(diferenciaPrecio);
+      const porcentajePerdidaRendimiento = Math.abs(diferenciaRendimiento);
+      
+      if (porcentajeAhorro > porcentajePerdidaRendimiento * 2) {
+        return {
+          texto: `Recomendamos ${productoComparado.nombre} - el ahorro compensa la pérdida de rendimiento`,
+          icono: <CheckCircle color="success" sx={{ mr: 1 }} />,
+          color: theme.palette.success.main
+        };
+      } else {
+        return {
+          texto: `${productoComparado.nombre} es más económico pero ${productoEstrella.nombre} rinde más`,
+          icono: <Warning color="warning" sx={{ mr: 1 }} />,
+          color: theme.palette.warning.main
+        };
+      }
+    }
+    
+    if (esMasCaroPeroMasRendimiento) {
+      const porcentajeCostoExtra = diferenciaPrecio;
+      const porcentajeGananciaRendimiento = Math.abs(diferenciaRendimiento);
+      
+      if (porcentajeGananciaRendimiento > porcentajeCostoExtra * 1.5) {
+        return {
+          texto: `Recomendamos ${productoComparado.nombre} - el rendimiento extra compensa el costo adicional`,
+          icono: <CheckCircle color="success" sx={{ mr: 1 }} />,
+          color: theme.palette.success.main
+        };
+      } else {
+        return {
+          texto: `${productoComparado.nombre} rinde más pero ${productoEstrella.nombre} es más económico`,
+          icono: <Warning color="warning" sx={{ mr: 1 }} />,
+          color: theme.palette.warning.main
+        };
+      }
     }
     
     return {
@@ -74,16 +139,6 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
   };
 
   const recomendacion = getRecomendacion();
-
-  const formatearLitros = (valor: number): string => {
-    const redondeado = Math.round(valor * 100) / 100;
-    return redondeado
-      .toLocaleString('es-AR', {
-        minimumFractionDigits: redondeado % 1 === 0 ? 0 : 2,
-        maximumFractionDigits: 2,
-      })
-      .replace(/,/g, '.'); // Asegura que el separador decimal sea punto
-  };
 
   return (
     <Box
@@ -139,18 +194,18 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
         <li>
           <strong>Precio:</strong> 
           {diferenciaPrecio < 0 ? (
-            <span>{productoComparado.nombre} es <span className="highlight">{Math.abs(diferenciaPrecio)}% más económico</span></span>
+            <span>{productoComparado.nombre} es <span className="highlight">{formatearPorcentaje(Math.abs(diferenciaPrecio))}% más económico</span></span>
           ) : (
-            <span>{productoEstrella.nombre} es <span className="highlight">{diferenciaPrecio}% más económico</span></span>
+            <span>{productoEstrella.nombre} es <span className="highlight">{formatearPorcentaje(diferenciaPrecio)}% más económico</span></span>
           )}
         </li>
         
         <li>
           <strong>Rendimiento:</strong> 
           {diferenciaRendimiento > 0 ? (
-            <span>{productoComparado.nombre} rinde <span className="litros-diff">{formatearLitros(diferenciaLitros)}L más</span> ({diferenciaRendimiento}% mejor)</span>
+            <span>{productoEstrella.nombre} rinde <span className="litros-diff">{formatearLitros(diferenciaLitros)}L más</span> ({formatearPorcentaje(diferenciaRendimiento)}% mejor)</span>
           ) : (
-            <span>{productoEstrella.nombre} rinde <span className="litros-diff">{formatearLitros(diferenciaLitros)}L más</span> ({Math.abs(diferenciaRendimiento)}% mejor)</span>
+            <span>{productoComparado.nombre} rinde <span className="litros-diff">{formatearLitros(diferenciaLitros)}L más</span> ({formatearPorcentaje(Math.abs(diferenciaRendimiento))}% mejor)</span>
           )}
         </li>
         
@@ -162,8 +217,10 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
             <span className="highlight">Excelente relación calidad-precio a favor de {productoEstrella.nombre}</span>
           ) : esEmpateTecnico ? (
             <span>Relación similar en ambos productos</span>
+          ) : esMasBaratoPeroMenosRendimiento ? (
+            <span>Valorar si prefieres el ahorro ({formatearPorcentaje(Math.abs(diferenciaPrecio))}%) sobre el rendimiento</span>
           ) : (
-            <span>Valorar si prefieres {diferenciaPrecio < 0 ? 'el ahorro' : 'mejor rendimiento'}</span>
+            <span>Valorar si prefieres mejor rendimiento ({formatearPorcentaje(diferenciaRendimiento)}%) sobre el precio</span>
           )}
         </li>
       </Box>
@@ -181,13 +238,13 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
         
         {esMejorOpcion && (
           <Typography variant="body2" sx={{ mt: 1 }}>
-            Por cada {litrosEstrella}L que rinde {productoEstrella.nombre}, {productoComparado.nombre} rinde {litrosComparado}L ({formatearLitros(diferenciaLitros)}L más) y cuesta {Math.abs(diferenciaPrecio)}% menos.
+            Por cada {formatearLitros(litrosEstrella)}L que rinde {productoEstrella.nombre}, {productoComparado.nombre} rinde {formatearLitros(litrosComparado)}L ({formatearLitros(diferenciaLitros)}L más) y cuesta {formatearPorcentaje(Math.abs(diferenciaPrecio))}% menos.
           </Typography>
         )}
         
         {esMejorEstrella && (
           <Typography variant="body2" sx={{ mt: 1 }}>
-            Por cada {litrosComparado}L que rinde {productoComparado.nombre}, {productoEstrella.nombre} rinde {litrosEstrella}L ({formatearLitros(diferenciaLitros)}L más) y cuesta {diferenciaPrecio}% menos.
+            Por cada {formatearLitros(litrosComparado)}L que rinde {productoComparado.nombre}, {productoEstrella.nombre} rinde {formatearLitros(litrosEstrella)}L ({formatearLitros(diferenciaLitros)}L más) y cuesta {formatearPorcentaje(diferenciaPrecio)}% menos.
           </Typography>
         )}
       </Box>
@@ -196,9 +253,9 @@ export const RecomendacionCompra: React.FC<RecomendacionCompraProps> = ({
         <Box sx={{ mt: 2, fontStyle: 'italic' }}>
           <Typography variant="body2">
             {diferenciaPrecio < 0 ? (
-              `Si el precio es tu prioridad, ${productoComparado.nombre} es la mejor opción (ahorro del ${Math.abs(diferenciaPrecio)}%)`
+              `Si el precio es tu prioridad, ${productoComparado.nombre} es la mejor opción (ahorro del ${formatearPorcentaje(Math.abs(diferenciaPrecio))}%)`
             ) : (
-              `Si el rendimiento es tu prioridad, ${productoEstrella.nombre} es la mejor opción (${formatearLitros(diferenciaLitros)}L más por cada ${litrosComparado}L)`
+              `Si el rendimiento es tu prioridad, ${productoEstrella.nombre} es la mejor opción (${formatearLitros(diferenciaLitros)}L más por cada ${formatearLitros(litrosComparado)}L)`
             )}
           </Typography>
         </Box>

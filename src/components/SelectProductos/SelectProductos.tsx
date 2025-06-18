@@ -24,13 +24,15 @@ import {
   ExpandMore
 } from '@mui/icons-material';
 import { Producto } from '../../interfaces/interfaces';
+import { ProductPrice } from '../../hooks/useProductPrices';
 import { CustomGrid } from '../CustomGrid/CustomGrid';
-
 
 interface SelectProductosProps {
   productos: Producto[];
   productoSeleccionado: Producto | undefined;
   onSeleccionar: (producto: Producto) => void;
+  getProductPrice?: (producto: Producto) => ProductPrice | undefined;
+  necesitaPrecio?: (producto: Producto) => boolean;
   sx?: SxProps<Theme>;
 }
 
@@ -38,6 +40,8 @@ export const SelectProductos = ({
   productos,
   productoSeleccionado,
   onSeleccionar,
+  getProductPrice,
+  necesitaPrecio,
   sx
 }: SelectProductosProps) => {
   const theme = useTheme();
@@ -45,10 +49,12 @@ export const SelectProductos = ({
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const filteredProducts = productos.filter(producto =>
-    producto.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    producto.descripcion?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = productos
+    .filter(producto => producto.id !== 1)
+    .filter(producto =>
+      producto.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      producto.descripcion?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -64,9 +70,28 @@ export const SelectProductos = ({
   const toggleDropdown = () => setIsOpen(!isOpen);
 
   const handleSelect = (producto: Producto) => {
+    console.log('🎯 SelectProductos - handleSelect iniciado');
+    console.log('📦 Producto seleccionado:', {
+      id: producto.id,
+      nombre: producto.nombre,
+      necesitaPrecio: necesitaPrecio?.(producto)
+    });
     onSeleccionar(producto);
     setIsOpen(false);
     setSearchTerm('');
+  };
+
+  const formatARS = (value: number | undefined) => {
+    if (typeof value !== 'number') return '0,00';
+    return value.toFixed(2)
+      .replace('.', ',')
+      .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  const getProductDisplayPrice = (producto: Producto) => {
+    if (!getProductPrice) return '0,00';
+    const precio = getProductPrice(producto);
+    return precio ? formatARS(precio.precio) : '0,00';
   };
 
   return (
@@ -75,7 +100,7 @@ export const SelectProductos = ({
       sx={{
         position: 'relative',
         width: '100%',
-         maxWidth: '97%',
+        maxWidth: '97%',
         ...sx
       }}
     >
@@ -182,8 +207,7 @@ export const SelectProductos = ({
           </Box>
         </Box>
       </Paper>
-  
-      {/* Panel de selección - Versión premium */}
+   
       <Fade in={isOpen}>
         <Paper
           sx={{
@@ -202,7 +226,6 @@ export const SelectProductos = ({
             flexDirection: 'column'
           }}
         >
-          {/* Barra de búsqueda mejorada */}
           <Box sx={{ 
             p: 2,
             position: 'sticky',
@@ -254,8 +277,7 @@ export const SelectProductos = ({
               }}
             />
           </Box>
-  
-          {/* Contenedor de productos con scroll */}
+   
           <Box sx={{ 
             flex: 1,
             overflowY: 'auto',
@@ -273,126 +295,147 @@ export const SelectProductos = ({
           }}>
             {filteredProducts.length > 0 ? (
               <Grid container spacing={2}>
-                {filteredProducts.map((producto) => (
-                  <CustomGrid item xs={12} sm={6} md={4} key={producto.id}>
-                    <Paper
-                      elevation={productoSeleccionado?.id === producto.id ? 3 : 1}
-                      onClick={() => handleSelect(producto)}
-                      sx={{
-                        height: '100%',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        border: `2px solid ${
-                          productoSeleccionado?.id === producto.id 
-                            ? theme.palette.primary.main 
-                            : 'transparent'
-                        }`,
-                        '&:hover': {
-                          transform: 'translateY(-4px)',
-                          boxShadow: theme.shadows[6],
-                          borderColor: theme.palette.primary.light
-                        }
-                      }}
-                    >
-                      <Box sx={{
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column'
-                      }}>
-                        {/* Imagen del producto */}
-                        <Box sx={{
-                          height: 140,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: theme.palette.background.default,
-                          p: 2,
-                          position: 'relative'
-                        }}>
-                          <Avatar
-                            src={producto.foto}
-                            alt={producto.nombre}
-                            sx={{
-                              width: 100,
-                              height: 100,
-                              objectFit: 'contain',
-                              borderRadius: '8px'
-                            }}
-                            variant="rounded"
-                          />
-                          {productoSeleccionado?.id === producto.id && (
+                {filteredProducts.map((producto) => {
+                  const isSelected = productoSeleccionado?.id === producto.id;
+                  const precio = getProductDisplayPrice(producto);
+                  const necesitaPrecioProducto = necesitaPrecio?.(producto);
+
+                  return (
+                    <CustomGrid item xs={12} sm={6} md={4} key={producto.id}>
+                      <Box
+                        onClick={(e) => {
+                          console.log('🖱️ SelectProductos - Click en producto:', producto.nombre);
+                          e.stopPropagation();
+                          handleSelect(producto);
+                        }}
+                        sx={{
+                          height: '100%',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Paper
+                          elevation={isSelected ? 3 : 1}
+                          sx={{
+                            height: '100%',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            border: `2px solid ${
+                              isSelected 
+                                ? theme.palette.primary.main 
+                                : 'transparent'
+                            }`,
+                            '&:hover': {
+                              transform: 'translateY(-4px)',
+                              boxShadow: theme.shadows[6],
+                              borderColor: theme.palette.primary.light
+                            }
+                          }}
+                        >
+                          <Box sx={{
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column'
+                          }}>
                             <Box sx={{
-                              position: 'absolute',
-                              top: 8,
-                              right: 8,
-                              backgroundColor: theme.palette.primary.main,
-                              color: theme.palette.primary.contrastText,
-                              borderRadius: '50%',
-                              width: 28,
-                              height: 28,
+                              height: 140,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              boxShadow: theme.shadows[2]
+                              backgroundColor: theme.palette.background.default,
+                              p: 2,
+                              position: 'relative'
                             }}>
-                              <CheckCircle fontSize="small" />
+                              <Avatar
+                                src={producto.foto}
+                                alt={producto.nombre}
+                                sx={{
+                                  width: 100,
+                                  height: 100,
+                                  objectFit: 'contain',
+                                  borderRadius: '8px'
+                                }}
+                                variant="rounded"
+                              />
+                              {isSelected && (
+                                <Box sx={{
+                                  position: 'absolute',
+                                  top: 8,
+                                  right: 8,
+                                  backgroundColor: theme.palette.primary.main,
+                                  color: theme.palette.primary.contrastText,
+                                  borderRadius: '50%',
+                                  width: 28,
+                                  height: 28,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  boxShadow: theme.shadows[2]
+                                }}>
+                                  <CheckCircle fontSize="small" />
+                                </Box>
+                              )}
                             </Box>
-                          )}
-                        </Box>
-  
-                        {/* Contenido de la card */}
-                        <Box sx={{
-                          p: 2,
-                          flex: 1,
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}>
-                          <Typography 
-                            variant="subtitle1" 
-                            fontWeight="600"
-                            sx={{ mb: 1 }}
-                          >
-                            {producto.nombre}
-                          </Typography>
-                          <Typography 
-                            variant="body2" 
-                            color="text.secondary"
-                            sx={{
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              flex: 1
-                            }}
-                          >
-                            {producto.descripcion}
-                          </Typography>
-                          <Box sx={{
-                            mt: 2,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}>
-                            <Chip 
-                              label="Comparar" 
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                            />
-                            {producto.precio && (
-                              <Typography variant="body2" fontWeight="500">
-                                ${producto.precio.toFixed(2)}
+   
+                            <Box sx={{
+                              p: 2,
+                              flex: 1,
+                              display: 'flex',
+                              flexDirection: 'column'
+                            }}>
+                              <Typography 
+                                variant="subtitle1" 
+                                fontWeight="600"
+                                sx={{ mb: 1 }}
+                              >
+                                {producto.nombre}
                               </Typography>
-                            )}
+                              <Typography 
+                                variant="body2" 
+                                color="text.secondary"
+                                sx={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  flex: 1
+                                }}
+                              >
+                                {producto.descripcion}
+                              </Typography>
+                              {precio && (
+                                <Box sx={{ mt: 1 }}>
+                                  <Typography variant="body2" color="primary" fontWeight="bold">
+                                    ${precio}
+                                  </Typography>
+                                </Box>
+                              )}
+                              {necesitaPrecioProducto && (
+                                <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1 }}>
+                                  Necesita precio
+                                </Typography>
+                              )}
+                              <Box sx={{
+                                mt: 2,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}>
+                                <Chip 
+                                  label="Comparar" 
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                              </Box>
+                            </Box>
                           </Box>
-                        </Box>
+                        </Paper>
                       </Box>
-                    </Paper>
-                  </CustomGrid>
-                ))}
+                    </CustomGrid>
+                  );
+                })}
               </Grid>
             ) : (
               <Box sx={{ 

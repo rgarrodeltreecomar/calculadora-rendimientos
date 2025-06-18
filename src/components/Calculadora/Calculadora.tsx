@@ -6,7 +6,7 @@ import {
   useTheme,
   IconButton
 } from '@mui/material';
-import { Calculate as CalculatorIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Edit as EditIcon } from '@mui/icons-material';
 import { useComparativa } from '../../hooks';
 import { SelectProductos } from '../SelectProductos/SelectProductos';
 import { ProductoFijo } from '../StaticItem/StaticItem';
@@ -14,26 +14,37 @@ import {
   CalculatorContainer, 
   CalculatorHeader, 
   MedicalCalculator, 
-  //MejorRendimientoBanner, 
   ProductoEstrellaContainer,
 } from '../../styles';
 import { CalculadoraProps } from '../../interfaces/Calculadora.types';
 import { DataTable, TableCellStyled, StyledRow } from '../TablaComparacion/TablaComparacion';
 import { StarProductCell } from '../StarProductCell';
 import { RecomendacionCompra } from '../RecomendationCard/RecomendationCard';
+import { Producto } from '../../interfaces/interfaces';
 
 export const Calculadora: React.FC<CalculadoraProps> = ({
   productosDisponibles,
   productoEstrella,
   onEditProduct,
-  isLoading
+  onSelectProduct,
+  isLoading,
+  getProductPrice,
+  productPrices,
+  productoSeleccionado
 }) => {
   const theme = useTheme();
   const {
     comparativa,
-    seleccionarProducto,
-  } = useComparativa(productosDisponibles, isLoading, productoEstrella);
-
+    mostrarComparativa,
+    isCalculando,
+    refreshTable
+  } = useComparativa(
+    isLoading,
+    productoEstrella || null,
+    productoSeleccionado || null,
+    getProductPrice,
+    productPrices
+  );
 
   const formatARS = (value: number) => {
     return value.toFixed(2)
@@ -41,6 +52,10 @@ export const Calculadora: React.FC<CalculadoraProps> = ({
       .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
+  // Función para formatear porcentajes con máximo 2 decimales
+  const formatPorcentaje = (value: number) => {
+    return value.toFixed(2).replace(/\.?0+$/, ''); // Elimina ceros innecesarios al final
+  };
 
   const columns = [
     { text: 'Producto', align: 'left' as const, width: '25%' },
@@ -51,28 +66,54 @@ export const Calculadora: React.FC<CalculadoraProps> = ({
     { text: 'Modificar', align: 'center' as const, width: '15%' },
   ];
 
+  // Función que maneja la selección de productos
+  const handleSelectProduct = async (producto: Producto) => {
+    console.log('🎯 Calculadora - handleSelectProduct:', producto.nombre);
+    
+    // Llamar al método de CalculatorPage que maneja el SweetAlert
+    await onSelectProduct(producto);
+  };
+
+  // Función que maneja la edición de productos y actualiza la tabla
+  const handleEditProduct = (producto: Producto) => {
+    console.log('🔄 Calculadora - handleEditProduct:', producto.nombre);
+    onEditProduct(producto);
+    // Después de editar, refrescar la tabla
+    setTimeout(() => {
+      refreshTable();
+    }, 100);
+  };
+
   useEffect(() => {
-    console.log('Productos disponibles en Calculadora:', productosDisponibles);
-    console.log('Producto estrella:', productoEstrella);
-    console.log('Producto seleccionado:', comparativa.productoSeleccionado);
-  }, [productosDisponibles, productoEstrella, comparativa.productoSeleccionado]);
+    console.log('🔄 Calculadora - Renderizando con props:', {
+      productosDisponibles: productosDisponibles.length,
+      tieneProductoEstrella: !!productoEstrella,
+      isLoading,
+      onSelectProduct: !!onSelectProduct,
+      comparativa: comparativa.length,
+      mostrarComparativa,
+      productoSeleccionado: !!productoSeleccionado,
+      productoSeleccionadoNombre: productoSeleccionado?.nombre
+    });
+    
+    console.log('📊 Calculadora - Estado de la comparativa:', {
+      comparativa,
+      mostrarComparativa,
+      isCalculando
+    });
+  }, [productosDisponibles, productoEstrella, isLoading, onSelectProduct, comparativa, mostrarComparativa, productoSeleccionado, isCalculando]);
 
   return (
-    <CalculatorContainer elevation={3}>
+    <CalculatorContainer>
       <CalculatorHeader>
-        <Typography variant="h4" color="primary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-          <CalculatorIcon fontSize="large" />
-          Comparativa de Productos
-        </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
-          Compara nuestro producto estrella con otros productos
+        <Typography variant="h4" component="h1" gutterBottom>
+          Calculadora de Rendimientos
         </Typography>
       </CalculatorHeader>
 
       {isLoading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
           <CircularProgress />
-          <Typography variant="body1" ml={2}>Cargando productos...</Typography>
         </Box>
       ) : (
         <MedicalCalculator elevation={0}>
@@ -94,11 +135,7 @@ export const Calculadora: React.FC<CalculadoraProps> = ({
                   Nuestro Producto
                 </Typography>
                 <ProductoFijo
-                  producto={{
-                    id: productoEstrella.id || 1,
-                    foto: productoEstrella.foto as string,
-                    nombre: productoEstrella.nombre!,
-                  }}
+                  producto={productoEstrella}
                   size="medium"
                   sx={{
                     backgroundColor: theme.palette.common.white,
@@ -108,6 +145,7 @@ export const Calculadora: React.FC<CalculadoraProps> = ({
                     width: '100%'
                   }}
                   showBadge
+                  getProductPrice={getProductPrice}
                 />
               </ProductoEstrellaContainer>
             )}
@@ -122,98 +160,106 @@ export const Calculadora: React.FC<CalculadoraProps> = ({
               </Typography>
               <SelectProductos
                 productos={productosDisponibles}
-                productoSeleccionado={comparativa.productoSeleccionado}
-                onSeleccionar={seleccionarProducto}
+                productoSeleccionado={productoSeleccionado || undefined}
+                onSeleccionar={handleSelectProduct}
+                getProductPrice={getProductPrice}
               />
             </Box>
           </Box>
 
-          {comparativa.resultados.length > 0 && (
+          {productoSeleccionado && (
             <Box mt={4}>
-              <Typography variant="h6" color="primary" textAlign="center" gutterBottom>
-                Resultados de comparación
-              </Typography>
-              
-              <DataTable columns={columns} isLoading={isLoading} maxHeight={500}>
-  {comparativa.resultados.map((item, index) => {
-    const esProductoPropio = item.producto.id === 1;
-    const isFirstItem = index === 0;
+              {isCalculando ? (
+                <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                  <CircularProgress />
+                </Box>
+              ) : mostrarComparativa && comparativa && comparativa.length > 0 ? (
+                <>
+                  <Typography variant="h6" color="primary" textAlign="center" gutterBottom>
+                    Resultados de comparación
+                  </Typography>
+                  <DataTable columns={columns} isLoading={isLoading} maxHeight={500}>
+                    {comparativa.map((item, index) => {
+                      const esProductoPropio = item.producto.id === 1;
+                      const isFirstItem = index === 0;
 
-    return (
-      <StyledRow
-        key={item.producto.id}
-        className={`${isFirstItem ? 'active-row' : ''}`} // Eliminado 'best-performance'
-      >
-        <TableCellStyled
-          align="left"
-          sx={{
-            position: 'relative',
-            '&:before': isFirstItem
-              ? {
-                  content: '""',
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 4,
-                  backgroundColor: theme.palette.primary.main,
-                  borderRadius: '2px 0 0 2px',
-                }
-              : {},
-          }}
-        >
-          <StarProductCell 
-            name={item.producto.nombre!} 
-            isStar={isFirstItem} 
-          />
-        </TableCellStyled>
+                      return (
+                        <StyledRow
+                          key={item.producto.id}
+                          className={`${isFirstItem ? 'active-row' : ''}`}
+                        >
+                          <TableCellStyled
+                            align="left"
+                            sx={{
+                              position: 'relative',
+                              '&:before': isFirstItem
+                                ? {
+                                    content: '""',
+                                    position: 'absolute',
+                                    left: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: 4,
+                                    backgroundColor: theme.palette.primary.main,
+                                    borderRadius: '2px 0 0 2px',
+                                  }
+                                : {},
+                            }}
+                          >
+                            <StarProductCell 
+                              name={item.producto.nombre!} 
+                              isStar={isFirstItem} 
+                            />
+                          </TableCellStyled>
 
-        <TableCellStyled align="center">
-           {item.producto.presentacionEnLitros} L
-        </TableCellStyled>
+                          <TableCellStyled align="center">
+                            {item.producto.presentacionEnLitros} L
+                          </TableCellStyled>
 
-        <TableCellStyled align="center">
-          ${formatARS(item.costoPorLitro)}
-        </TableCellStyled>
+                          <TableCellStyled align="center">
+                            ${formatARS(item.costoPorLitro)}
+                          </TableCellStyled>
 
-        <TableCellStyled
-          align="center"
-          className={item.diferenciaPrecio >= 0 ? 'highlight-negative' : 'highlight-positive'}
-        >
-          {item.diferenciaPrecio >= 0 ? '+' : ''}
-          {item.diferenciaPrecio}%
-        </TableCellStyled>
+                          <TableCellStyled
+                            align="center"
+                            className={item.diferenciaPrecio >= 0 ? 'highlight-negative' : 'highlight-positive'}
+                          >
+                            {item.diferenciaPrecio >= 0 ? '+' : ''}
+                            {formatPorcentaje(item.diferenciaPrecio)}%
+                          </TableCellStyled>
 
-        <TableCellStyled
-          align="center"
-          className={item.diferenciaRendimiento >= 0 ? 'highlight-positive' : 'highlight-negative'}
-        >
-          {item.diferenciaRendimiento >= 0 ? '+' : ''}
-          {item.diferenciaRendimiento}%
-        </TableCellStyled>
+                          <TableCellStyled
+                            align="center"
+                            className={item.diferenciaRendimiento >= 0 ? 'highlight-positive' : 'highlight-negative'}
+                          >
+                            {item.diferenciaRendimiento >= 0 ? '+' : ''}
+                            {formatPorcentaje(item.diferenciaRendimiento)}%
+                          </TableCellStyled>
 
-        <TableCellStyled align="center">
-          {!esProductoPropio && (
-            <IconButton
-              aria-label="editar"
-              size="small"
-              onClick={() => onEditProduct(item.producto)}
-              sx={{ color: theme.palette.primary.main }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          )}
-        </TableCellStyled>
-      </StyledRow>
-    );
-  })}
-</DataTable>
+                          <TableCellStyled align="center">
+                            {!esProductoPropio && (
+                              <IconButton
+                                aria-label="editar"
+                                size="small"
+                                onClick={() => handleEditProduct(item.producto)}
+                                sx={{ color: theme.palette.primary.main }}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </TableCellStyled>
+                        </StyledRow>
+                      );
+                    })}
+                  </DataTable>
 
-        <RecomendacionCompra
-          productoEstrella={productoEstrella}
-          productoComparado={comparativa.productoSeleccionado}
-          resultados={comparativa.resultados}
-        />
+                  <RecomendacionCompra
+                    productoEstrella={productoEstrella}
+                    productoComparado={productoSeleccionado}
+                    resultados={comparativa}
+                  />
+                </>
+              ) : null}
             </Box>
           )}
         </MedicalCalculator>

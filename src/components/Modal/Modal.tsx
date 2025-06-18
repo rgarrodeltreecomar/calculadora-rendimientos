@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';
 import { Producto } from '../../interfaces/interfaces';
+import { ProductPrice } from '../../hooks/useProductPrices';
 import { useForm } from '../../hooks/useForm';
 import { ButtonCustom, CustomGrid } from '../../components'
 
@@ -24,21 +25,27 @@ import { ButtonCustom, CustomGrid } from '../../components'
 
 interface EditProductModalProps {
   producto: Producto;
-  onSave: (updatedProduct: Omit<Producto, 'precioPorLitro'>) => void;
+  onSave: (updatedProduct: Partial<Producto>) => void;
   onClose: () => void;
+  getProductPrice: (producto: Producto) => ProductPrice | undefined;
 }
 
 export const EditProductModal: React.FC<EditProductModalProps> = ({
   producto,
   onSave,
   onClose,
+  getProductPrice
 }) => {
+  const precioActual = getProductPrice(producto);
+  
   const {
     formulario: editedProduct,
     handleInputChange,
     handleSelectChange,
   } = useForm<Omit<Producto, 'precioPorLitro'>>({
-    ...producto
+    ...producto,
+    precio: precioActual?.precio ?? producto.precio,
+    presentacionEnLitros: precioActual?.presentacionEnLitros ?? producto.presentacionEnLitros
   });
 
   const handleSave = () => {
